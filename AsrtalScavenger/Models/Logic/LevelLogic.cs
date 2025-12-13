@@ -34,17 +34,10 @@ public class LevelLogic
                     default: pos = new Point(0, 0); vel = new Point(0, 0); break;
                 }
 
-                // Вероятности как в ТЗ:
-                // Метеорит — 100% (база)
-                // Металл — 50% от метеорита
-                // Золото — 1/3 от металла ≈ 16.6%
-                // Алмаз — 1/2 от золота ≈ 8.3%
-                // Energy/Fuel — редкие (по 3%)
-
                 int rand = _rand.Next(0, 100);
                 DebrisType type;
                 bool isCollectible = true;
-                int size = 30;
+                int size = 40;
 
                 if (rand < 50) // Металл
                 {
@@ -87,7 +80,7 @@ public class LevelLogic
         }
 
         // Для всех остальных уровней — фиксированный шанс 8%
-        if (_rand.Next(0, 100) < 8)
+        if (_rand.Next(0, 100) < 20)
         {
             var side = _rand.Next(0, 4);
             Point pos, vel;
@@ -105,17 +98,17 @@ public class LevelLogic
             int r = _rand.Next(0, 100);
             DebrisType debrisType;
             bool isCollectible = true;
-            int size = 30;
+            int size = 40;
 
-            if (r < 50) // Металл
+            if (r < 20) // Металл
             {
                 debrisType = DebrisType.Metal;
             }
-            else if (r < 66) // Золото
+            else if (r < 30) // Золото
             {
                 debrisType = DebrisType.Gold;
             }
-            else if (r < 74) // Алмаз (только с уровня 7+)
+            else if (r < 6) // Алмаз (только с уровня 7+)
             {
                 if (level >= GameLevel.RichHunt)
                     debrisType = DebrisType.Diamond;
