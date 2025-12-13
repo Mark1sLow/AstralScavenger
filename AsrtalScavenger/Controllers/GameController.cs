@@ -137,57 +137,80 @@ public class GameController
 
     private void HandleCustomizationClick(Point mousePos)
     {
+        var y = 150;
+        var labelX = _width / 2 - 450;
+        var leftX = _width / 2 + 100;
+        var rightX = _width / 2 + 400;
+        var btnSize = 40;
+
         // Сложность
-        var diffRect = new Rectangle(_width / 2 + 50, 190, 40, 40);
-        var diffLeft = new Rectangle(_width / 2 - 30, 190, 40, 40);
-        if (diffRect.Contains(mousePos))
-        {
-            _state.Difficulty = (GameDifficulty)(((int)_state.Difficulty + 1) % 4);
-        }
-        else if (diffLeft.Contains(mousePos))
+        if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.Difficulty = (GameDifficulty)(((int)_state.Difficulty + 3) % 4);
+            // Обновляем здоровье игрока в зависимости от сложности
+            _state.Player.Health = _state.Difficulty switch
+            {
+                GameDifficulty.Easy => 5,
+                GameDifficulty.Normal => 3,
+                GameDifficulty.Hard => 2,
+                GameDifficulty.Extreme => 1,
+                _ => 3
+            };
         }
+        else if (new Rectangle(rightX, y, btnSize, btnSize).Contains(mousePos))
+        {
+            _state.Difficulty = (GameDifficulty)(((int)_state.Difficulty + 1) % 4);
+            _state.Player.Health = _state.Difficulty switch
+            {
+                GameDifficulty.Easy => 5,
+                GameDifficulty.Normal => 3,
+                GameDifficulty.Hard => 2,
+                GameDifficulty.Extreme => 1,
+                _ => 3
+            };
+        }
+
+        y += 60;
 
         // Тип корабля
-        var shipRect = new Rectangle(_width / 2 + 50, 260, 40, 40);
-        var shipLeft = new Rectangle(_width / 2 - 30, 260, 40, 40);
-        if (shipRect.Contains(mousePos))
+        if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.SelectedShipType = (ShipType)(((int)_state.SelectedShipType + 1) % 2);
+            // Обновляем скорость
+            _state.Player.Speed = _state.SelectedShipType == ShipType.Transport ? 8 : 6;
         }
-        else if (shipLeft.Contains(mousePos))
+        else if (new Rectangle(rightX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.SelectedShipType = (ShipType)(((int)_state.SelectedShipType + 1) % 2);
+            _state.Player.Speed = _state.SelectedShipType == ShipType.Transport ? 8 : 6;
         }
 
+        y += 60;
+
         // Цвет
-        var colorRect = new Rectangle(_width / 2 + 50, 330, 40, 40);
-        var colorLeft = new Rectangle(_width / 2 - 30, 330, 40, 40);
-        if (colorRect.Contains(mousePos))
-        {
-            _state.SelectedColor = (PlayerColor)(((int)_state.SelectedColor + 1) % 4);
-        }
-        else if (colorLeft.Contains(mousePos))
+        if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.SelectedColor = (PlayerColor)(((int)_state.SelectedColor + 3) % 4);
         }
+        else if (new Rectangle(rightX, y, btnSize, btnSize).Contains(mousePos))
+        {
+            _state.SelectedColor = (PlayerColor)(((int)_state.SelectedColor + 1) % 4);
+        }
+
+        y += 60;
 
         // Фон
-        var bgRect = new Rectangle(_width / 2 + 50, 400, 40, 40);
-        var bgLeft = new Rectangle(_width / 2 - 30, 400, 40, 40);
-        if (bgRect.Contains(mousePos))
-        {
-            _state.SelectedBackground = (BackgroundStyle)(((int)_state.SelectedBackground + 1) % 5);
-        }
-        else if (bgLeft.Contains(mousePos))
+        if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.SelectedBackground = (BackgroundStyle)(((int)_state.SelectedBackground + 4) % 5);
         }
+        else if (new Rectangle(rightX, y, btnSize, btnSize).Contains(mousePos))
+        {
+            _state.SelectedBackground = (BackgroundStyle)(((int)_state.SelectedBackground + 1) % 5);
+        }
 
-        var buttonWidth = 240;
-        var buttonHeight = 60;
-        var backButton = new Rectangle(_width / 2 - buttonWidth / 2, _height - 120, buttonWidth, buttonHeight);
+        // Кнопка НАЗАД
+        var backButton = new Rectangle(_width / 2 - 240 / 2, _height - 100, 240, 60);
         if (backButton.Contains(mousePos))
         {
             _state.CurrentScreen = GameScreen.Menu;
@@ -287,7 +310,15 @@ public class GameController
         _state.CollectedDiamond = 0;
         _state.IsGameOver = false;
         _state.IsLevelComplete = false;
-        _state.Player.Health = 3;
+        // Установка здоровья в зависимости от сложности
+        _state.Player.Health = _state.Difficulty switch
+        {
+            GameDifficulty.Easy => 10,
+            GameDifficulty.Normal => 3,
+            GameDifficulty.Hard => 2,
+            GameDifficulty.Extreme => 1,
+            _ => 3
+        };
 
         // Установка скорости в зависимости от типа корабля
         _state.Player.Speed = _state.SelectedShipType == ShipType.Transport ? 8 : 6; // +30% ≈ 8

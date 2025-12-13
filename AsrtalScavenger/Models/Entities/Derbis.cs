@@ -7,7 +7,7 @@ public class Debris
 {
     public Point Position { get; set; }
     public Point Velocity { get; set; } = new(0, 0);
-    public int Size { get; set; } = 40;
+    public int Size { get; set; } = 45;
     public bool IsCollectible { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public bool IsStatic { get; set; } = false;

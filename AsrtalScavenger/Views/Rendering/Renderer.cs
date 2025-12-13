@@ -3,6 +3,7 @@ using AstralScavenger.Models.States;
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Reflection;
 using System.Windows.Forms;
 
@@ -21,6 +22,8 @@ public class Renderer
     private Image _fuelTexture;             // +20 сек
     private Image _dangerTexture;           // метеорит
     private Image _backgroundTexture;
+
+    private BackgroundStyle _currentBackgroundStyle = BackgroundStyle.Default;
 
     public Renderer(int width, int height, GameState state)
     {
@@ -67,26 +70,16 @@ public class Renderer
 
     private void LoadPlayerTexture(PlayerColor color, ShipType type)
     {
-        string filename = type switch
+        string shipPrefix = type == ShipType.Cargo ? "playerShip1" : "playerShip2";
+        string colorName = color switch
         {
-            ShipType.Cargo => color switch
-            {
-                PlayerColor.Blue => "playerShip1_blue.png",
-                PlayerColor.Red => "playerShip1_red.png",
-                PlayerColor.Green => "playerShip1_green.png",
-                PlayerColor.Orange => "playerShip1_orange.png",
-                _ => "playerShip1_blue.png"
-            },
-            ShipType.Transport => color switch
-            {
-                PlayerColor.Blue => "playerShip2_blue.png",
-                PlayerColor.Red => "playerShip2_red.png",
-                PlayerColor.Green => "playerShip2_green.png",
-                PlayerColor.Orange => "playerShip2_orange.png",
-                _ => "playerShip2_blue.png"
-            },
-            _ => "playerShip1_blue.png"
+            PlayerColor.Blue => "blue",
+            PlayerColor.Red => "red",
+            PlayerColor.Green => "green",
+            PlayerColor.Orange => "orange",
+            _ => "blue"
         };
+        string filename = $"{shipPrefix}_{colorName}.png";
 
         _playerTexture?.Dispose();
         _playerTexture = LoadImage(filename) ?? LoadImage("playerShip1_blue.png");
@@ -94,10 +87,10 @@ public class Renderer
 
     public void Render(Graphics g, PlayerColor selectedColor, ShipType shipType, BackgroundStyle backgroundStyle)
     {
-        if (_state.SelectedBackground != backgroundStyle)
+        if (_currentBackgroundStyle != backgroundStyle)
         {
-            _state.SelectedBackground = backgroundStyle;
-            LoadBackgroundTexture(backgroundStyle);
+            _currentBackgroundStyle = backgroundStyle; // Обновляем внутреннее состояние Renderer
+            LoadBackgroundTexture(backgroundStyle);    // Перезагружаем текстуру
         }
 
         LoadPlayerTexture(selectedColor, shipType);
@@ -134,9 +127,9 @@ public class Renderer
     private void RenderMenu(Graphics g)
     {
         DrawBackground(g);
-        var titleFont = new Font("Arial", 36, FontStyle.Bold);
+        var titleFont = new Font("Arial", 48, FontStyle.Bold);
         var titleSize = g.MeasureString("ASTRAL SCAVENGER", titleFont);
-        g.DrawString("ASTRAL SCAVENGER", titleFont, Brushes.White, _width / 2 - titleSize.Width / 2, 100);
+        g.DrawString("ASTRAL SCAVENGER", titleFont, Brushes.White, _width / 2 - titleSize.Width / 2, 150);
 
         var buttonWidth = 240;
         var buttonHeight = 60;
@@ -248,7 +241,10 @@ public class Renderer
 
     private void RenderGame(Graphics g)
     {
-        bool isDarkLevel = _state.CurrentLevel is GameLevel.DarkZone or GameLevel.DarkStatic or GameLevel.DarkInverted or GameLevel.Survival;
+        bool isDarkLevel = _state.CurrentLevel == GameLevel.DarkZone ||
+                   _state.CurrentLevel == GameLevel.DarkStatic ||
+                   _state.CurrentLevel == GameLevel.DarkInverted ||
+                   (_state.CurrentLevel == GameLevel.Survival && _state.TimeLeft <= 300);
 
         if (isDarkLevel)
         {
@@ -267,9 +263,11 @@ public class Renderer
 
             using var path = new GraphicsPath();
             path.AddEllipse(lightX - lightRadius, lightY - lightRadius, lightRadius * 2, lightRadius * 2);
+
             using var brush = new PathGradientBrush(path);
             brush.CenterColor = Color.FromArgb(50, 255, 255, 255);
             brush.SurroundColors = new[] { Color.FromArgb(0, 255, 255, 255) };
+
             g.FillPath(brush, path);
         }
 
@@ -293,14 +291,6 @@ public class Renderer
         {
             if (!d.IsActive) continue;
 
-            if (isDarkLevel)
-            {
-                var lightRadius = (int)(_state.Player.Size * 4 * 1.25f);
-                var dx = d.Position.X + d.Size / 2 - (_state.Player.Position.X + _state.Player.Size / 2);
-                var dy = d.Position.Y + d.Size / 2 - (_state.Player.Position.Y + _state.Player.Size / 2);
-                if (Math.Sqrt(dx * dx + dy * dy) > lightRadius) continue;
-            }
-
             Image texture = d.IsCollectible ? (d.Type switch
             {
                 DebrisType.Gold => _rareCollectibleTexture,
@@ -309,6 +299,47 @@ public class Renderer
                 DebrisType.Fuel => _fuelTexture,
                 _ => _collectibleTexture
             }) : _dangerTexture;
+
+            if (isDarkLevel)
+            {
+                var lightRadius = (int)(_state.Player.Size * 4 * 1.25f);
+                var dx = d.Position.X + d.Size / 2 - (_state.Player.Position.X + _state.Player.Size / 2);
+                var dy = d.Position.Y + d.Size / 2 - (_state.Player.Position.Y + _state.Player.Size / 2);
+                var distance = Math.Sqrt(dx * dx + dy * dy);
+
+                if (distance > lightRadius)
+                {
+                    continue; // Полностью невидим
+                }
+
+                // Плавное появление: чем ближе к центру, тем больше прозрачность
+                float alpha = (float)(1.0 - distance / lightRadius); // 0..1
+                alpha = Math.Max(0.1f, alpha); // Минимальная видимость
+
+                if (texture != null)
+                {
+                    // Для текстуры используем ImageAttributes
+                    using var attr = new ImageAttributes();
+                    attr.SetColorMatrix(new ColorMatrix { Matrix00 = 1, Matrix11 = 1, Matrix22 = 1, Matrix33 = alpha, Matrix44 = 1 });
+                    g.DrawImage(texture, new Rectangle(d.Position.X, d.Position.Y, d.Size, d.Size), 0, 0, texture.Width, texture.Height, GraphicsUnit.Pixel, attr);
+                }
+                else
+                {
+                    // Для эллипсов
+                    Brush b = d.IsCollectible ? (d.Type switch
+                    {
+                        DebrisType.Gold => Brushes.Gold,
+                        DebrisType.Diamond => Brushes.Cyan,
+                        DebrisType.Energy => Brushes.Green,
+                        DebrisType.Fuel => Brushes.Orange,
+                        _ => Brushes.Gray
+                    }) : Brushes.Red;
+
+                    using var translucentBrush = new SolidBrush(Color.FromArgb((int)(alpha * 255), ((SolidBrush)b).Color));
+                    g.FillEllipse(translucentBrush, d.Position.X, d.Position.Y, d.Size, d.Size);
+                }
+                continue; // Переходим к следующему объекту
+            }
 
             if (texture != null)
             {
@@ -364,7 +395,7 @@ public class Renderer
                 GameLevel.DarkInverted => 150,
                 _ => 100
             };
-            g.DrawString($"ОСТАЛОСЬ: {Math.Max(0, required - _state.Score)}", font, Brushes.White, 10, 110);
+            g.DrawString($"ОСТАЛОСЬ СОБРАТЬ: {Math.Max(0, required - _state.Score)}", font, Brushes.White, 10, 110);
         }
     }
 
@@ -376,16 +407,16 @@ public class Renderer
         g.DrawString("НАСТРОЙКИ", titleFont, Brushes.White, _width / 2 - titleSize.Width / 2, 60);
 
         var font = new Font("Arial", 18);
-        var y = 190;
-        var labelX = _width / 2 - 120;
-        var leftX = _width / 2 - 30;
-        var rightX = _width / 2 + 50;
+        var y = 150; // Начальная Y-координата
+        var labelX = _width / 2 - 450; // Отступ слева для текста
+        var leftButtonX = _width / 2 + 100; // Левая кнопка
+        var rightButtonX = _width / 2 + 400; // Правая кнопка
         var btnSize = 40;
 
         // Сложность
         g.DrawString("СЛОЖНОСТЬ ИГРЫ:", font, Brushes.White, labelX, y);
-        DrawArrowButton(g, new Rectangle(leftX, y, btnSize, btnSize), true);
-        DrawArrowButton(g, new Rectangle(rightX, y, btnSize, btnSize), false);
+        DrawArrowButton(g, new Rectangle(leftButtonX, y, btnSize, btnSize), true);
+        DrawArrowButton(g, new Rectangle(rightButtonX, y, btnSize, btnSize), false);
         string diffStr = _state.Difficulty switch
         {
             GameDifficulty.Easy => "EASY",
@@ -393,19 +424,23 @@ public class Renderer
             GameDifficulty.Hard => "HARD",
             _ => "EXTREME"
         };
-        g.DrawString(diffStr, font, Brushes.Yellow, _width / 2 - 10, y);
+        g.DrawString(diffStr, font, Brushes.Yellow, _width / 2 + 150, 155);
 
-        y += 70;
+        y += 60; // Увеличенный отступ
+
+        // Тип корабля
         g.DrawString("ТИП КОРАБЛЯ:", font, Brushes.White, labelX, y);
-        DrawArrowButton(g, new Rectangle(leftX, y, btnSize, btnSize), true);
-        DrawArrowButton(g, new Rectangle(rightX, y, btnSize, btnSize), false);
+        DrawArrowButton(g, new Rectangle(leftButtonX, y, btnSize, btnSize), true);
+        DrawArrowButton(g, new Rectangle(rightButtonX, y, btnSize, btnSize), false);
         string shipStr = _state.SelectedShipType == ShipType.Cargo ? "ГРУЗОВОЙ" : "ТРАНСПОРТНЫЙ";
-        g.DrawString(shipStr, font, Brushes.Yellow, _width / 2 - 10, y);
+        g.DrawString(shipStr, font, Brushes.Yellow, _width / 2 + 150, 215);
 
-        y += 70;
+        y += 60;
+
+        // Цвет
         g.DrawString("ЦВЕТ КОРАБЛЯ:", font, Brushes.White, labelX, y);
-        DrawArrowButton(g, new Rectangle(leftX, y, btnSize, btnSize), true);
-        DrawArrowButton(g, new Rectangle(rightX, y, btnSize, btnSize), false);
+        DrawArrowButton(g, new Rectangle(leftButtonX, y, btnSize, btnSize), true);
+        DrawArrowButton(g, new Rectangle(rightButtonX, y, btnSize, btnSize), false);
         string colorStr = _state.SelectedColor switch
         {
             PlayerColor.Blue => "СИНИЙ",
@@ -413,12 +448,14 @@ public class Renderer
             PlayerColor.Green => "ЗЕЛЕНЫЙ",
             _ => "ОРАНЖЕВЫЙ"
         };
-        g.DrawString(colorStr, font, Brushes.Yellow, _width / 2 - 10, y);
+        g.DrawString(colorStr, font, Brushes.Yellow, _width / 2 + 150, 275);
 
-        y += 70;
+        y += 60;
+
+        // Фон
         g.DrawString("ФОН ИГРЫ:", font, Brushes.White, labelX, y);
-        DrawArrowButton(g, new Rectangle(leftX, y, btnSize, btnSize), true);
-        DrawArrowButton(g, new Rectangle(rightX, y, btnSize, btnSize), false);
+        DrawArrowButton(g, new Rectangle(leftButtonX, y, btnSize, btnSize), true);
+        DrawArrowButton(g, new Rectangle(rightButtonX, y, btnSize, btnSize), false);
         string bgStr = _state.SelectedBackground switch
         {
             BackgroundStyle.Default => "ПО УМОЛЧАНИЮ",
@@ -427,9 +464,13 @@ public class Renderer
             BackgroundStyle.PixelSpace => "ПИКСЕЛЬ КОСМОС",
             _ => "ТУМАННОСТЬ"
         };
-        g.DrawString(bgStr, font, Brushes.Yellow, _width / 2 - 10, y);
+        g.DrawString(bgStr, font, Brushes.Yellow, _width / 2 + 150, 335);
 
-        var backButton = new Rectangle(_width / 2 - 240 / 2, _height - 120, 240, 60);
+        // Кнопка НАЗАД
+        var backButtonWidth = 240;
+        var backButtonHeight = 60;
+        var backButtonY = _height - 100;
+        var backButton = new Rectangle(_width / 2 - backButtonWidth / 2, backButtonY, backButtonWidth, backButtonHeight);
         DrawButton(g, backButton, "НАЗАД");
     }
 
@@ -443,15 +484,15 @@ public class Renderer
         Point[] points = isLeft
             ? new Point[]
             {
-                new Point(rect.X + rect.Width - 10, rect.Y + rect.Height / 2),
-                new Point(rect.X + 10, rect.Y + 10),
-                new Point(rect.X + 10, rect.Y + rect.Height - 10)
-            }
-            : new Point[]
-            {
                 new Point(rect.X + 10, rect.Y + rect.Height / 2),
                 new Point(rect.X + rect.Width - 10, rect.Y + 10),
                 new Point(rect.X + rect.Width - 10, rect.Y + rect.Height - 10)
+            }
+            : new Point[]
+            {
+                new Point(rect.X + rect.Width - 10, rect.Y + rect.Height / 2),
+                new Point(rect.X + 10, rect.Y + 10),
+                new Point(rect.X + 10, rect.Y + rect.Height - 10)
             };
         g.FillPolygon(Brushes.White, points);
     }

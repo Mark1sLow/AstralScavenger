@@ -11,15 +11,24 @@ public class LevelLogic
     public void GenerateDebrisForLevel(GameState state, int width, int height)
     {
         var level = state.CurrentLevel;
+        int spawnChance;
 
-        // Уровень 12 — бесконечный (выживание)
+        // Уровень 12 — выживание
         if (level == GameLevel.Survival)
         {
-            // Сложность растёт со временем
-            float difficultyFactor = 1.0f + (float)(state.Score / 200.0); // каждые 200 очков — +1 сложность
+            // Сложность растёт до 5 минут (300 секунд)
+            float difficultyFactor = 1.0f;
+            if (state.TimeLeft > 300)
+            {
+                difficultyFactor = 1.0f + (float)(state.Score / 150.0);
+            }
+            else
+            {
+                // После 5 минут сложность фиксирована
+                difficultyFactor = 1.0f + (float)(state.Score / 150.0);
+            }
 
-            // Шанс генерации: базовый + рост
-            int spawnChance = (int)(8 * difficultyFactor);
+            spawnChance = (int)(8 * difficultyFactor);
             if (_rand.Next(0, 100) < spawnChance)
             {
                 var side = _rand.Next(0, 4);
@@ -27,43 +36,43 @@ public class LevelLogic
 
                 switch (side)
                 {
-                    case 0: pos = new Point(_rand.Next(0, width), -30); vel = new Point(_rand.Next(-4, 5), _rand.Next(2, 6)); break;
-                    case 1: pos = new Point(_rand.Next(0, width), height + 30); vel = new Point(_rand.Next(-4, 5), _rand.Next(-6, -2)); break;
-                    case 2: pos = new Point(-30, _rand.Next(0, height)); vel = new Point(_rand.Next(2, 6), _rand.Next(-4, 5)); break;
-                    case 3: pos = new Point(width + 30, _rand.Next(0, height)); vel = new Point(_rand.Next(-6, -2), _rand.Next(-4, 5)); break;
+                    case 0: pos = new Point(_rand.Next(0, width), -45); vel = new Point(_rand.Next(-5, 6), _rand.Next(2, 7)); break;
+                    case 1: pos = new Point(_rand.Next(0, width), height + 45); vel = new Point(_rand.Next(-5, 6), _rand.Next(-7, -2)); break;
+                    case 2: pos = new Point(-45, _rand.Next(0, height)); vel = new Point(_rand.Next(2, 7), _rand.Next(-5, 6)); break;
+                    case 3: pos = new Point(width + 45, _rand.Next(0, height)); vel = new Point(_rand.Next(-7, -2), _rand.Next(-5, 6)); break;
                     default: pos = new Point(0, 0); vel = new Point(0, 0); break;
                 }
 
-                int rand = _rand.Next(0, 100);
+                int r = _rand.Next(0, 100);
                 DebrisType type;
                 bool isCollectible = true;
-                int size = 40;
+                int size = 45;
 
-                if (rand < 50) // Металл
+                if (r < 35) // Металл
                 {
                     type = DebrisType.Metal;
                 }
-                else if (rand < 66) // Золото (16%)
+                else if (r < 47) // Золото (12%)
                 {
                     type = DebrisType.Gold;
                 }
-                else if (rand < 74) // Алмаз (8%)
+                else if (r < 50) // Алмаз (3%)
                 {
                     type = DebrisType.Diamond;
                 }
-                else if (rand < 77) // Energy (3%)
-                {
-                    type = DebrisType.Energy;
-                }
-                else if (rand < 80) // Fuel (3%)
+                else if (r < 53) // Топливо (3%)
                 {
                     type = DebrisType.Fuel;
                 }
-                else // метеорит (20%)
+                else if (r < 55) // Энергия (2%)
+                {
+                    type = DebrisType.Energy;
+                }
+                else // Метеорит (45%)
                 {
                     isCollectible = false;
                     type = DebrisType.Standard;
-                    size = _rand.Next(30, 70);
+                    size = _rand.Next(45, 80);
                 }
 
                 state.Debris.Add(new Debris
@@ -72,54 +81,120 @@ public class LevelLogic
                     Velocity = vel,
                     IsCollectible = isCollectible,
                     Type = type,
-                    Size = isCollectible ? 30 : size
+                    Size = isCollectible ? 45 : size
                 });
+            }
+
+            // Появление статичных метеоритов после 8 минут (480 секунд) в темноте
+            if (state.TimeLeft <= 120 && state.Debris.Count(d => d.IsStatic) < 15) // Если прошло 3 мин в темноте
+            {
+                var safeZone = new Rectangle(
+                    state.Player.Position.X - 100,
+                    state.Player.Position.Y - 100,
+                    200,
+                    200
+                );
+
+                var x = _rand.Next(50, width - 50);
+                var y = _rand.Next(50, height - 50);
+                var pos = new Point(x, y);
+                var size = _rand.Next(45, 90);
+                var rect = new Rectangle(x, y, size, size);
+
+                if (!safeZone.IntersectsWith(rect))
+                {
+                    bool overlap = false;
+                    foreach (var d in state.Debris)
+                    {
+                        if (d.IsStatic && new Rectangle(d.Position.X, d.Position.Y, d.Size, d.Size).IntersectsWith(rect))
+                        {
+                            overlap = true;
+                            break;
+                        }
+                    }
+
+                    if (!overlap)
+                    {
+                        state.Debris.Add(new Debris
+                        {
+                            Position = pos,
+                            IsCollectible = false,
+                            IsStatic = true,
+                            Type = DebrisType.Standard,
+                            Size = size
+                        });
+                    }
+                }
             }
 
             return;
         }
 
-        // Для всех остальных уровней — фиксированный шанс 8%
-        if (_rand.Next(0, 100) < 20)
+        // Остальные уровни — сбалансированные шансы
+        spawnChance = level switch
+        {
+            GameLevel.Tutorial or GameLevel.ResourceHunt => 10,
+            GameLevel.ResourceGoal1 or GameLevel.InvertedControls => 12,
+            GameLevel.StaticHazards or GameLevel.ResourceGoal2 => 14,
+            GameLevel.RichHunt or GameLevel.DarkZone => 15,
+            GameLevel.StaticInverted or GameLevel.DarkStatic or GameLevel.DarkInverted => 16,
+            _ => 8
+        };
+
+        if (_rand.Next(0, 100) < spawnChance)
         {
             var side = _rand.Next(0, 4);
             Point pos, vel;
 
             switch (side)
             {
-                case 0: pos = new Point(_rand.Next(0, width), -30); vel = new Point(_rand.Next(-3, 4), _rand.Next(1, 5)); break;
-                case 1: pos = new Point(_rand.Next(0, width), height + 30); vel = new Point(_rand.Next(-3, 4), _rand.Next(-5, -1)); break;
-                case 2: pos = new Point(-30, _rand.Next(0, height)); vel = new Point(_rand.Next(1, 5), _rand.Next(-3, 4)); break;
-                case 3: pos = new Point(width + 30, _rand.Next(0, height)); vel = new Point(_rand.Next(-5, -1), _rand.Next(-3, 4)); break;
+                case 0: pos = new Point(_rand.Next(0, width), -45); vel = new Point(_rand.Next(-4, 5), _rand.Next(1, 6)); break;
+                case 1: pos = new Point(_rand.Next(0, width), height + 45); vel = new Point(_rand.Next(-4, 5), _rand.Next(-6, -1)); break;
+                case 2: pos = new Point(-45, _rand.Next(0, height)); vel = new Point(_rand.Next(1, 6), _rand.Next(-4, 5)); break;
+                case 3: pos = new Point(width + 45, _rand.Next(0, height)); vel = new Point(_rand.Next(-6, -1), _rand.Next(-4, 5)); break;
                 default: pos = new Point(0, 0); vel = new Point(0, 0); break;
             }
 
-            // Вероятности по ТЗ
             int r = _rand.Next(0, 100);
             DebrisType debrisType;
             bool isCollectible = true;
-            int size = 40;
+            int size = 45;
 
-            if (r < 20) // Металл
+            if (level == GameLevel.Tutorial || level == GameLevel.ResourceHunt)
             {
-                debrisType = DebrisType.Metal;
+                // Только металл на 1 и 2 уровне
+                if (r < 40) // Металл
+                {
+                    debrisType = DebrisType.Metal;
+                }
+                else // Метеорит
+                {
+                    isCollectible = false;
+                    debrisType = DebrisType.Standard;
+                    size = _rand.Next(45, 80);
+                }
             }
-            else if (r < 30) // Золото
+            else
             {
-                debrisType = DebrisType.Gold;
-            }
-            else if (r < 6) // Алмаз (только с уровня 7+)
-            {
-                if (level >= GameLevel.RichHunt)
+                // Остальные уровни
+                if (r < 40) // Металл
+                {
+                    debrisType = DebrisType.Metal;
+                }
+                else if (r < 55) // Золото (15%)
+                {
+                    debrisType = DebrisType.Gold;
+                }
+                else if (r < 60) // Алмаз (5%)
+                {
                     debrisType = DebrisType.Diamond;
-                else
-                    debrisType = DebrisType.Gold; // на ранних уровнях — золото вместо алмаза
-            }
-            else // метеорит
-            {
-                isCollectible = false;
-                debrisType = DebrisType.Standard;
-                size = _rand.Next(20, 80);
+                }
+                else // Метеорит
+                {
+                    isCollectible = false;
+                    debrisType = DebrisType.Standard;
+                    size = _rand.Next(45, 80);
+                }
             }
 
             state.Debris.Add(new Debris
@@ -128,22 +203,19 @@ public class LevelLogic
                 Velocity = vel,
                 IsCollectible = isCollectible,
                 Type = debrisType,
-                Size = isCollectible ? size : size
+                Size = isCollectible ? 45 : size
             });
         }
 
-        // Статичные метеориты для уровней с ними
-        if (state.Debris.Count(d => d.IsStatic) == 0)
-        {
-            if (level == GameLevel.StaticHazards ||
+        // Статичные метеориты
+        if (state.Debris.Count(d => d.IsStatic) == 0 && (
+                level == GameLevel.StaticHazards ||
                 level == GameLevel.ResourceGoal2 ||
                 level == GameLevel.StaticInverted ||
                 level == GameLevel.DarkStatic ||
-                level == GameLevel.DarkInverted ||
-                level == GameLevel.Survival)
-            {
-                AddStaticHazards(state, width, height, count: _rand.Next(12, 16));
-            }
+                level == GameLevel.DarkInverted))
+        {
+            AddStaticHazards(state, width, height, count: _rand.Next(12, 16));
         }
     }
 
@@ -199,16 +271,16 @@ public class LevelLogic
         {
             case GameLevel.Tutorial: state.TimeLeft = 90f; break;
             case GameLevel.ResourceHunt: state.TimeLeft = 60f; break;
-            case GameLevel.ResourceGoal1: state.TimeLeft = 60f; state.UsesResourceGoals = true; state.RequiredMetal = 5; state.RequiredGold = 3; break;
+            case GameLevel.ResourceGoal1: state.TimeLeft = 60f; state.UsesResourceGoals = true; state.RequiredMetal = 5; state.RequiredGold = 3; break; // Уровень 3
             case GameLevel.InvertedControls: state.TimeLeft = 90f; break;
             case GameLevel.StaticHazards: state.TimeLeft = 90f; break;
-            case GameLevel.ResourceGoal2: state.TimeLeft = 90f; state.UsesResourceGoals = true; state.RequiredMetal = 8; state.RequiredGold = 5; break;
+            case GameLevel.ResourceGoal2: state.TimeLeft = 90f; state.UsesResourceGoals = true; state.RequiredMetal = 8; state.RequiredGold = 5; break; // Уровень 6
             case GameLevel.RichHunt: state.TimeLeft = 60f; break;
             case GameLevel.DarkZone: state.TimeLeft = 90f; break;
             case GameLevel.StaticInverted: state.TimeLeft = 120f; break;
             case GameLevel.DarkStatic: state.TimeLeft = 90f; break;
             case GameLevel.DarkInverted: state.TimeLeft = 120f; break;
-            case GameLevel.Survival: state.TimeLeft = float.PositiveInfinity; break; // бесконечно
+            case GameLevel.Survival: state.TimeLeft = 60f; break; // Изначально 60 секунд
             default: state.TimeLeft = 90f; break;
         }
     }
