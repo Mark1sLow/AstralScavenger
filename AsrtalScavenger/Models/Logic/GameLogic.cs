@@ -24,6 +24,11 @@ public class GameLogic
         if (state.CurrentScreen != GameScreen.Playing || state.IsGameOver || state.IsLevelComplete)
             return;
 
+        if (state.CurrentLevel == GameLevel.Survival)
+        {
+            state.ElapsedTime += 1f / 60f;
+        }
+
         if (state.CurrentLevel != GameLevel.Survival)
         {
             state.TimeLeft -= 1f / 60f;
@@ -34,8 +39,17 @@ public class GameLogic
                 return;
             }
         }
+        else
+        {
+            state.TimeLeft -= 1f / 60f;
+            if (state.TimeLeft <= 0)
+            {
+                state.IsGameOver = true;
+                state.CurrentScreen = GameScreen.GameOverScreen;
+                return;
+            }
+        }
 
-        // Движение мусора
         foreach (var d in state.Debris)
         {
             if (!d.IsActive || d.IsStatic) continue;
@@ -70,26 +84,75 @@ public class GameLogic
             {
                 if (d.IsCollectible)
                 {
-                    switch (d.Type)
+                    if (state.CurrentLevel == GameLevel.Survival)
                     {
-                        case DebrisType.Metal:
-                            state.Score += 10;
-                            state.CollectedMetal++;
-                            break;
-                        case DebrisType.Gold:
-                            state.Score += 15;
-                            state.CollectedGold++;
-                            break;
-                        case DebrisType.Diamond:
-                            state.Score += 20; 
-                            state.CollectedDiamond++;
-                            break;
-                        case DebrisType.Energy:
-                            state.Player.Health++;
-                            break;
-                        case DebrisType.Fuel:
-                            state.TimeLeft += 20f;
-                            break;
+                        switch (d.Type)
+                        {
+                            case DebrisType.Metal:
+                                state.TotalResourcesCollected++;
+                                state.Score += 10;
+                                break;
+                            case DebrisType.Gold:
+                                state.TotalResourcesCollected++;
+                                state.Score += 15;
+                                break;
+                            case DebrisType.Diamond:
+                                state.TotalResourcesCollected++;
+                                state.Score += 20;
+                                break;
+                            case DebrisType.Fuel:
+                                state.TimeLeft = Math.Min(60f, state.TimeLeft + 30f);
+                                break;
+                            case DebrisType.Energy:
+                                int maxHealth = state.GetDifficultyForLevel(state.CurrentLevel) switch
+                                {
+                                    GameDifficulty.Easy => 10,
+                                    GameDifficulty.Normal => 3,
+                                    GameDifficulty.Hard => 2,
+                                    GameDifficulty.Extreme => 1,
+                                    _ => 3
+                                };
+                                if (state.Player.Health < maxHealth)
+                                {
+                                    state.Player.Health++;
+                                }
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        switch (d.Type)
+                        {
+                            case DebrisType.Metal:
+                                state.Score += 10;
+                                state.CollectedMetal++;
+                                break;
+                            case DebrisType.Gold:
+                                state.Score += 15;
+                                state.CollectedGold++;
+                                break;
+                            case DebrisType.Diamond:
+                                state.Score += 20;
+                                state.CollectedDiamond++;
+                                break;
+                            case DebrisType.Energy:
+                                int maxHealth = state.GetDifficultyForLevel(state.CurrentLevel) switch
+                                {
+                                    GameDifficulty.Easy => 10,
+                                    GameDifficulty.Normal => 3,
+                                    GameDifficulty.Hard => 2,
+                                    GameDifficulty.Extreme => 1,
+                                    _ => 3
+                                };
+                                if (state.Player.Health < maxHealth)
+                                {
+                                    state.Player.Health++;
+                                }
+                                break;
+                            case DebrisType.Fuel:
+                                state.TimeLeft += 20f;
+                                break;
+                        }
                     }
                     d.IsActive = false;
                 }
@@ -126,15 +189,16 @@ public class GameLogic
     {
         bool isInverted = state.CurrentLevel == GameLevel.InvertedControls ||
                           state.CurrentLevel == GameLevel.StaticInverted ||
-                          state.CurrentLevel == GameLevel.DarkInverted;
+                          state.CurrentLevel == GameLevel.DarkInverted ||
+                          (state.CurrentLevel == GameLevel.Survival && state.ElapsedTime >= 300f); 
 
         if (isInverted)
         {
             if (dx != 0 || dy != 0)
             {
-                state.Player.TargetRotation = (float)Math.Atan2(dy, -dx) - (float)(Math.PI / 2);
+                state.Player.TargetRotation = (float)Math.Atan2(dy, dx) - (float)(Math.PI / 2);
             }
-            var newX = state.Player.Position.X + dx * state.Player.Speed;
+            var newX = state.Player.Position.X - dx * state.Player.Speed;
             var newY = state.Player.Position.Y - dy * state.Player.Speed;
 
             if (newX >= 0 && newX <= _width - state.Player.Size)
@@ -164,8 +228,7 @@ public class GameLogic
                         _rand.Next(100, _width - 100),
                         _rand.Next(100, _height - 100)
                     );
-                    collision = true;
-                    break;
+                    collision = true; break;
                 }
             }
         } while (collision);

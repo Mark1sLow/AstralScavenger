@@ -100,13 +100,13 @@ public class GameController
 
     private void HandleLevelSelectionClick(Point mousePos)
     {
-        var buttonWidth = 200;
-        var buttonHeight = 50;
-        var spacing = 15;
+        var buttonWidth = 240;
+        var buttonHeight = 60;
+        var spacing = 20;
         var cols = 3;
         var rows = 4;
         var startX = _width / 2 - (cols * buttonWidth + (cols - 1) * spacing) / 2;
-        var startY = 150;
+        var startY = 250;
 
         for (int i = 0; i < 12; i++)
         {
@@ -143,12 +143,14 @@ public class GameController
         var rightX = _width / 2 + 400;
         var btnSize = 40;
 
-        // Сложность
         if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
-            _state.Difficulty = (GameDifficulty)(((int)_state.Difficulty + 3) % 4);
-            // Обновляем здоровье игрока в зависимости от сложности
-            _state.Player.Health = _state.Difficulty switch
+            var currentLevel = _state.CurrentLevel;
+            var currentDifficulty = _state.GetDifficultyForLevel(currentLevel);
+            var newDifficulty = (GameDifficulty)(((int)currentDifficulty + 3) % 4);
+            _state.SetDifficultyForLevel(currentLevel, newDifficulty);
+
+            int maxHealth = newDifficulty switch
             {
                 GameDifficulty.Easy => 5,
                 GameDifficulty.Normal => 3,
@@ -156,11 +158,16 @@ public class GameController
                 GameDifficulty.Extreme => 1,
                 _ => 3
             };
+            _state.Player.Health = maxHealth;
         }
         else if (new Rectangle(rightX, y, btnSize, btnSize).Contains(mousePos))
         {
-            _state.Difficulty = (GameDifficulty)(((int)_state.Difficulty + 1) % 4);
-            _state.Player.Health = _state.Difficulty switch
+            var currentLevel = _state.CurrentLevel;
+            var currentDifficulty = _state.GetDifficultyForLevel(currentLevel);
+            var newDifficulty = (GameDifficulty)(((int)currentDifficulty + 3) % 4);
+            _state.SetDifficultyForLevel(currentLevel, newDifficulty);
+
+            int maxHealth = _state.GetDifficultyForLevel(_state.CurrentLevel) switch
             {
                 GameDifficulty.Easy => 5,
                 GameDifficulty.Normal => 3,
@@ -168,15 +175,14 @@ public class GameController
                 GameDifficulty.Extreme => 1,
                 _ => 3
             };
+            _state.Player.Health = maxHealth;
         }
 
         y += 60;
 
-        // Тип корабля
         if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.SelectedShipType = (ShipType)(((int)_state.SelectedShipType + 1) % 2);
-            // Обновляем скорость
             _state.Player.Speed = _state.SelectedShipType == ShipType.Transport ? 8 : 6;
         }
         else if (new Rectangle(rightX, y, btnSize, btnSize).Contains(mousePos))
@@ -187,7 +193,6 @@ public class GameController
 
         y += 60;
 
-        // Цвет
         if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.SelectedColor = (PlayerColor)(((int)_state.SelectedColor + 3) % 4);
@@ -199,7 +204,6 @@ public class GameController
 
         y += 60;
 
-        // Фон
         if (new Rectangle(leftX, y, btnSize, btnSize).Contains(mousePos))
         {
             _state.SelectedBackground = (BackgroundStyle)(((int)_state.SelectedBackground + 4) % 5);
@@ -209,7 +213,6 @@ public class GameController
             _state.SelectedBackground = (BackgroundStyle)(((int)_state.SelectedBackground + 1) % 5);
         }
 
-        // Кнопка НАЗАД
         var backButton = new Rectangle(_width / 2 - 240 / 2, _height - 100, 240, 60);
         if (backButton.Contains(mousePos))
         {
@@ -280,11 +283,11 @@ public class GameController
         var startY = _height / 2 - totalHeight / 2;
 
         var menu = new Rectangle(_width / 2 - buttonWidth / 2, startY, buttonWidth, buttonHeight);
-        var settings = new Rectangle(_width / 2 - buttonWidth / 2, startY + buttonHeight + spacing, buttonWidth, buttonHeight); // ← Добавлена кнопка "НАСТРОЙКИ"
+        var settings = new Rectangle(_width / 2 - buttonWidth / 2, startY + buttonHeight + spacing, buttonWidth, buttonHeight); 
         var restart = new Rectangle(_width / 2 - buttonWidth / 2, startY + 2 * (buttonHeight + spacing), buttonWidth, buttonHeight);
 
         if (menu.Contains(mousePos)) _state.CurrentScreen = GameScreen.Menu;
-        else if (settings.Contains(mousePos)) _state.CurrentScreen = GameScreen.Customization; // ← Переход в настройки
+        else if (settings.Contains(mousePos)) _state.CurrentScreen = GameScreen.Customization; 
         else if (restart.Contains(mousePos))
         {
             _state.CurrentScreen = GameScreen.Playing;
@@ -308,32 +311,28 @@ public class GameController
         _state.CollectedMetal = 0;
         _state.CollectedGold = 0;
         _state.CollectedDiamond = 0;
+        _state.TotalResourcesCollected = 0;
         _state.IsGameOver = false;
         _state.IsLevelComplete = false;
-        // Установка здоровья в зависимости от сложности
-        _state.Player.Health = _state.Difficulty switch
+
+        int maxHealth = _state.GetDifficultyForLevel(_state.CurrentLevel) switch
         {
-            GameDifficulty.Easy => 10,
+            GameDifficulty.Easy => 5,
             GameDifficulty.Normal => 3,
             GameDifficulty.Hard => 2,
             GameDifficulty.Extreme => 1,
             _ => 3
         };
 
-        // Установка скорости в зависимости от типа корабля
-        _state.Player.Speed = _state.SelectedShipType == ShipType.Transport ? 8 : 6; // +30% ≈ 8
-
-        // Установка стартовой позиции
+        _state.Player.Health = maxHealth;
+        _state.Player.Speed = _state.SelectedShipType == ShipType.Transport ? 8 : 6;
         _state.Player.Position = new Point(
             _width / 2 - _state.Player.Size / 2,
             _height / 2 - _state.Player.Size / 2
         );
-
-        // Настройка уровня
+        
         var levelLogic = new LevelLogic();
         levelLogic.SetLevelRequirements(_state);
-
-        // Убедиться, что старт безопасен
         _logic.EnsurePlayerSafePosition(_state);
     }
 
