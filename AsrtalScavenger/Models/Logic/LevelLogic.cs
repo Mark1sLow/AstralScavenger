@@ -717,11 +717,11 @@ public class LevelLogic
                 {
                     type = DebrisType.Diamond;
                 }
-                else if (r < 50) 
+                else if (r < 52) 
                 {
                     type = DebrisType.Fuel;
                 }
-                else if (r < 50) 
+                else if (r < 54) 
                 {
                     type = DebrisType.Energy;
                 }

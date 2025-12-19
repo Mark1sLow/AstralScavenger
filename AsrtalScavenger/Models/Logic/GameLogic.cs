@@ -24,11 +24,6 @@ public class GameLogic
         if (state.CurrentScreen != GameScreen.Playing || state.IsGameOver || state.IsLevelComplete)
             return;
 
-        if (state.CurrentLevel == GameLevel.Survival)
-        {
-            state.ElapsedTime += 1f / 60f;
-        }
-
         if (state.CurrentLevel != GameLevel.Survival)
         {
             state.TimeLeft -= 1f / 60f;
@@ -41,6 +36,7 @@ public class GameLogic
         }
         else
         {
+            state.ElapsedTime += 1f / 60f;
             state.TimeLeft -= 1f / 60f;
             if (state.TimeLeft <= 0)
             {
@@ -59,6 +55,12 @@ public class GameLogic
         }
         state.Debris.RemoveAll(d => !d.IsActive);
 
+        state.Player.UpdateHitbox();
+        foreach (var d in state.Debris)
+        {
+            d.UpdateHitbox();
+        }
+
         CheckCollisions(state);
         _levelLogic.GenerateDebrisForLevel(state, _width, _height);
 
@@ -73,12 +75,12 @@ public class GameLogic
 
     private void CheckCollisions(GameState state)
     {
-        var playerRect = new Rectangle(state.Player.Position.X, state.Player.Position.Y, state.Player.Size, state.Player.Size);
+        var playerRect = state.Player.Hitbox;
 
         foreach (var d in state.Debris)
         {
             if (!d.IsActive) continue;
-            var debrisRect = new Rectangle(d.Position.X, d.Position.Y, d.Size, d.Size);
+            var debrisRect = d.Hitbox;
 
             if (playerRect.IntersectsWith(debrisRect))
             {
