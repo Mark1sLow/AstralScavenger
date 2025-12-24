@@ -441,9 +441,9 @@ public class Renderer
                 GameLevel.StaticInverted => 150,
                 GameLevel.DarkStatic => 200,
                 GameLevel.DarkInverted => 150,
-                GameLevel.RichHuntPlus => 1050,
-                GameLevel.RichHuntPlusDark => 1050,
-                GameLevel.RichHuntPlusChaos => 2100,
+                GameLevel.RichHuntPlus => 800,
+                GameLevel.RichHuntPlusDark => 800,
+                GameLevel.RichHuntPlusChaos => 1500,
                 _ => 100
             };
 

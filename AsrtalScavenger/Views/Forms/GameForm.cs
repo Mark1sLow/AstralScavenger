@@ -115,4 +115,15 @@ public partial class GameForm : Form
         var state = _controller.GetGameState();
         _controller.Render(e.Graphics, state.SelectedColor, state.SelectedShipType, state.SelectedBackground);
     }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Alt | Keys.F4))
+        {
+            Application.Exit();
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
 }

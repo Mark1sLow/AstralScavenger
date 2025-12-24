@@ -58,5 +58,4 @@ public class GameState
     public float ElapsedTime { get; set; } = 0f; 
     public float LastStaticSpawnTime { get; set; } = 0f;
     public int TotalResourcesCollected { get; set; } = 0; 
-    public int BestScore { get; set; } = 0; 
 }

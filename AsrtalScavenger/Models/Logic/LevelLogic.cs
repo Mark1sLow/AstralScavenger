@@ -841,11 +841,6 @@ public class LevelLogic
                 Size = isCollectible ? 45 : size
             });
         }
-
-        if (state.Debris.Count(d => d.IsStatic) == 0)
-        {
-            AddStaticHazards(state, width, height, count: _rand.Next(12, 16));
-        }
     }
 
 
@@ -1230,9 +1225,9 @@ public class LevelLogic
                 GameLevel.StaticInverted => 150,
                 GameLevel.DarkStatic => 200,
                 GameLevel.DarkInverted => 150,
-                GameLevel.RichHuntPlus => 1050,
-                GameLevel.RichHuntPlusDark => 1050,
-                GameLevel.RichHuntPlusChaos => 2100,
+                GameLevel.RichHuntPlus => 800,
+                GameLevel.RichHuntPlusDark => 80,
+                GameLevel.RichHuntPlusChaos => 1500,
                 _ => 100
             };
             return state.Score >= required;
